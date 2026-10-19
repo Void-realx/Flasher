@@ -1,0 +1,52 @@
+name: Build Android APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # If you uploaded FlasherApp.zip as a single file, unpack it; otherwise the repo root is the project.
+      - name: Find the project
+        run: |
+          if [ -f FlasherApp.zip ]; then
+            mkdir -p proj
+            unzip -q -o FlasherApp.zip -d proj
+            echo "PROJ=proj" >> "$GITHUB_ENV"
+          else
+            echo "PROJ=." >> "$GITHUB_ENV"
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build debug APK
+        run: |
+          cd "$PROJ"
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Collect the APK
+        run: cp "$PROJ/app/build/outputs/apk/debug/app-debug.apk" Flasher.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Flasher-apk
+          path: Flasher.apk
+
+      # A release gives you a direct .apk download link, easiest on a phone.
+      - name: Publish APK as a release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: Flasher APK (build ${{ github.run_number }})
+          files: Flasher.apk
